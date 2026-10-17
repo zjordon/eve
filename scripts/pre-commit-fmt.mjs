@@ -24,8 +24,9 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const REPO_ROOT = resolve(new URL("..", import.meta.url).pathname);
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 // Exit code `oxfmt` uses when no passed path matches a supported parser.
 const OXFMT_NO_TARGETS_EXIT = 2;
@@ -80,8 +81,10 @@ if (safe.length === 0) {
   process.exit(0);
 }
 
+// pnpm installs as a .cmd shim on Windows, which cannot be spawned without a shell.
 const fmt = run("pnpm", ["exec", "oxfmt", "--", ...safe], {
   stdio: ["ignore", "inherit", "inherit"],
+  shell: process.platform === "win32",
 });
 if (fmt.status === OXFMT_NO_TARGETS_EXIT) {
   // No staged file had a supported parser. Nothing to do.

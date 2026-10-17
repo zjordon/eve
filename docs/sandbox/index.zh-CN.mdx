@@ -1,0 +1,256 @@
+---
+title: "沙箱"
+description: "配置 eve agent 使用的隔离文件系统与命令环境。"
+---
+
+每个 eve agent 都有一个根位于 `/workspace` 的沙箱。内置的 `bash`、`read_file` 和 `write_file` 工具都使用它。如果没有编写沙箱文件，eve 会自动选择可用的最佳环境。
+
+## 使用沙箱
+
+自编写的工具和回调通过 `ctx.getSandbox()` 访问活动沙箱：
+
+```ts title="agent/tools/run_analysis.ts"
+import { defineTool } from "eve/tools";
+import { z } from "zod";
+
+export default defineTool({
+  description: "Run a Python script.",
+  inputSchema: z.object({ script: z.string() }),
+  async execute({ script }, ctx) {
+    const sandbox = await ctx.getSandbox();
+    await sandbox.writeTextFile({ path: "analysis.py", content: script });
+    const result = await sandbox.run({ command: "python analysis.py" });
+    if (result.exitCode !== 0) throw new Error(result.stderr);
+    return result.stdout;
+  },
+});
+```
+
+相对路径在 `/workspace` 之下解析。`run()` 返回 `{ exitCode, stdout, stderr }`；非零退出码不会自动抛错。长时间运行的进程请使用 `spawn()`。
+
+内置环境会在每次 `run()` 和 `spawn()` 调用（包括 `bash` 工具和 `prepare`）上设置 `AI_AGENT=eve`，因此 `vercel` 这类可感知 agent 的 CLI 会跳过交互式提示。要使用不同的值，请在环境的 `env` 选项中设置 `AI_AGENT`，或在某一次 `run()` / `spawn()` 调用的 `env` 中传入。
+
+传递已配置的环境，以便在自编写的运行时代码中保留其特有的会话能力：
+
+```ts
+import { environment } from "../sandbox";
+
+const sandbox = await ctx.getSandbox(environment);
+await sandbox.setNetworkPolicy("deny-all");
+```
+
+例如，Vercel 环境返回的句柄带有 `setNetworkPolicy()`。`ctx.getSandbox()` 返回的通用句柄不暴露 provider 特有的能力。传入的环境必须与当前沙箱所配置的环境一致。
+
+## 定义环境
+
+沙箱模块导出一个环境，并从 `defineSandbox()` 返回一个沙箱：
+
+```ts title="agent/sandbox.ts"
+import { DefaultSandbox, defineSandbox } from "eve/sandbox";
+
+export const environment = DefaultSandbox.environment();
+export default defineSandbox(() => environment.open());
+```
+
+`environment.open()` 启动由当前 eve 会话持有的持久沙箱。`defineSandbox()` 的选择器会一直运行直到初始化成功，随后 eve 会对选中的 provider 及其状态做 checkpoint。之后的 workflow 步骤和进程重启会直接调用 provider 的 `resume()`，不再重跑选择器或 `environment.open()`。
+
+把活动沙箱的选项传给 `open()`，然后配置返回的沙箱再将其返回。这段初始化对每个成功启动的持久沙箱只运行一次：
+
+```ts
+import { defineSandbox } from "eve/sandbox";
+import { VercelSandbox } from "eve/sandbox/vercel";
+
+export const environment = VercelSandbox.environment();
+
+export default defineSandbox(async ({ session }) => {
+  const sandbox = await environment.open({ networkPolicy: "deny-all" });
+  await sandbox.writeTextFile({ path: ".eve/session", content: session.id });
+  return sandbox;
+});
+```
+
+必须导出 environment，因为 `eve build` 会在会话尚不存在时就准备不可变的环境输入。
+
+### 准备可复用的环境
+
+使用环境的 `prepare` 选项来做每个新沙箱都会继承的初始化设置：
+
+```ts
+import { defineSandbox } from "eve/sandbox";
+import { VercelSandbox } from "eve/sandbox/vercel";
+
+export const environment = VercelSandbox.environment({
+  prepare: async (sandbox) => {
+    const result = await sandbox.run({
+      command: "sudo apt-get update && sudo apt-get install -y jq",
+    });
+    if (result.exitCode !== 0) throw new Error(result.stderr);
+  },
+});
+
+export default defineSandbox(() => environment.open());
+```
+
+eve 会在创建可复用的 provider 产物时运行 `prepare`，而不是为每个活动会话沙箱各运行一次。Vercel 捕获快照；Docker 捕获镜像；microsandbox 捕获 VM 快照；just-bash 捕获文件系统模板。
+
+在 `eve dev` 期间，启动和源码重建不会准备沙箱环境。首次访问沙箱时，会先准备该编译代（generation）中的所有环境，再打开所请求的沙箱——包括子 agent 和扩展声明的环境，即使它们使用不同的 provider。并发请求共享准备工作；准备失败可以在后续访问时重试。可选的 provider 安装与设置可能使首次访问变慢。
+
+`eve build` 仍会预先（eagerly）准备环境。生产环境中，eve 在创建活动沙箱时把记录的产物直接传给 provider。生产运行时不会重建或修复缺失的产物；镜像、快照或模板缺失时，会带着重建或重新部署的指引失败。
+
+### 跨会话复用原生资源
+
+内置环境不提供跨会话共享。要在多个 eve 会话之间复用原生计算或存储，请自定义 provider：让它返回会话持有的逻辑沙箱视图，并把共享资源放在该视图的 `stop`、`shutdown`、`delete` 操作之外。会话专属路径不是隔离边界；互不信任的会话需要彼此分离的原生计算，或更强的 provider 级隔离。
+
+### 共享父级沙箱
+
+声明的子 agent 可以显式使用派发它的父级沙箱：
+
+```ts title="agent/subagents/reviewer/sandbox.ts"
+import { defineParentSandbox } from "eve/sandbox";
+
+export default defineParentSandbox();
+```
+
+继承父级沙箱的子 agent 不能再声明自己的受管工作区或技能文件。
+
+## 受管工作区与技能
+
+用沙箱目录存放编写的工作区种子：
+
+```text
+agent/sandbox/
+  sandbox.ts
+  workspace/
+    schema.sql
+```
+
+`agent/sandbox/workspace/` 下的文件作为可写 `/workspace` 的种子。eve 在准备新的环境代时复制种子。已有活动沙箱的状态不会被后续的种子变更覆盖。
+
+Agent 技能会被编译到单独的资源树，并暴露在 `$HOME/.agents/skills`。这些路径在所有内置 provider 上都保持稳定，因此指令和工具可以放心引用 `/workspace` 和 `$HOME/.agents/skills`。不要引用具体的 home 目录或 `/eve/resources`——后者是 provider 内部的暂存区。
+
+Provider 会连同显式元数据一起接收这两棵树：
+
+```ts
+interface SandboxProviderResources {
+  source:
+    | { kind: "none" }
+    | { kind: "inline"; key: string }
+    | { kind: "materialized"; key: string; path: string }
+    | { kind: "reference"; key: string };
+  workspace?: SandboxProviderResourceTree;
+  skills?: SandboxProviderResourceTree;
+}
+
+interface SandboxProviderResourceTree {
+  key: string;
+  files: ResourceFile[];
+  mountPath: string;
+  targetPath: string;
+}
+```
+
+Docker 和 microsandbox 把编译后的树以只读方式挂载在 `/eve/resources` 之下，把工作区种子复制进可写的 `/workspace`，并尽可能以只读方式暴露技能。Vercel 的快照环境在捕获快照之前写入工作区和技能内容。自定义 provider 自行决定对每棵树是上传、挂载还是写入，但必须在自编写的准备工作运行之前暴露最终的目标路径。
+
+## 入站附件
+
+eve 会把到达 agent 的字节型文件写入沙箱的 `/workspace/.eve/attachments/` 之下，并在会话历史中只保留一个引用。这包括附加到用户消息上的文件，以及工具通过 `toolOutputPart.file` 或以 MCP 的 image、audio、blob 内容形式返回给模型的文件。
+
+每次模型调用之前，eve 会从沙箱读回被引用的文件。每个文件——无论附加在消息上还是由工具返回——都会带一个标明其沙箱路径的标签到达模型，例如 `Attached file /workspace/.eve/attachments/<hash>/report.csv (text/csv)`。agent 可以用 `read_file` 或 `bash` 打开该路径。只有当所有主流 provider 都原生读取该格式时，文件的字节才会跟随其标签：
+
+- 不超过 3 MiB、且单边不超过 8000 像素的 PNG、JPEG、GIF 或 WebP 图片。
+- 不超过 20 MiB 的 PDF。
+
+其他文件（如 CSV、HEIC、音频和视频）只以标签的形式到达模型。eve 在暂存文件时会用文件字节校验图片和 PDF 的媒体类型；字节与声明的图片或 PDF 类型不符的文件会按 `application/octet-stream` 暂存，provider 因此绝不会收到它本来会拒绝的字节。
+
+如果被引用的文件缺失，或因沙箱中的内容将其覆盖、导致字节与 eve 暂存时不一致，模型会收到一条 `FileNotFound` 备注。
+
+无法暂存的文件不会进入会话历史。当频道的 `fetchFile` 失败，或文件部分的 `data` 不是字节、base64、`data:` URL 或 URL 时，模型会收到一条点名该文件的备注。
+
+同一文件的每次调用都发送相同的字节，因此模型仍能看到较早轮次的附件，provider 的提示词缓存也保持有效。压缩（compaction）会把较早工具结果中的文件替换为其文本引用。`read_file` 工具以文件形式向模型展示同样的图片和 PDF，因此 agent 在压缩之后仍能重新查看附件，或打开由工具或 `bash` 写入沙箱的 PDF。
+
+## 自定义 provider
+
+用 `eve/sandbox/provider` 的 `defineSandboxProvider()` 定义 provider。五个泛型参数分别描述：环境选项、活动（live）选项、准备好的产物、最小化的可序列化会话状态，以及 provider 特有的沙箱会话类型：
+
+```ts
+import type { SandboxSession } from "eve/sandbox";
+import { defineSandboxProvider } from "eve/sandbox/provider";
+
+export const AcmeSandbox = defineSandboxProvider<
+  { image: string; prepare?: (sandbox: SandboxSession) => Promise<void> },
+  { networkPolicy?: "allow-all" | "deny-all" },
+  { templateId: string },
+  { remoteId: string; version: 1 },
+  SandboxSession
+>({
+  name: "acme",
+  environment(options) {
+    const client = createAcmeClient(options);
+
+    return {
+      async onSessionEnd(_ctx, _artifact, state, { reason }) {
+        await client.delete({ id: state.remoteId, reason });
+      },
+
+      async prepare(ctx) {
+        const temporary = await client.createTemporary({
+          files: await ctx.files.list(),
+          resources: ctx.resources,
+        });
+        const sandbox = adaptAcmeSandbox(temporary);
+        await options?.prepare?.(sandbox);
+        return { templateId: (await temporary.capture()).id };
+      },
+
+      async start(ctx, liveOptions, artifact) {
+        const remote = await client.open({
+          identity: sessionIdentity(ctx.session.id, artifact, liveOptions),
+          networkPolicy: liveOptions?.networkPolicy,
+          templateId: artifact.templateId,
+        });
+        return {
+          handle: createHandle(remote),
+          state: { remoteId: remote.id, version: 1 },
+        };
+      },
+
+      async resume(_ctx, artifact, state) {
+        const remote = await client.resume({ id: state.remoteId, templateId: artifact.templateId });
+        return createHandle(remote);
+      },
+    };
+  },
+});
+```
+
+`prepare()` 返回完整的可 JSON 序列化产物。核心对一个新建的持久沙箱会话只调用一次 `start()`，并持久化其最小的 JSON 兼容状态。进程重启时，只带当前上下文、该状态和目标部署的确切产物调用 `resume()`。
+
+当持久会话到达 completed、expired 或 failed 终态时，会调用 `onSessionEnd()`。它会收到确切的已准备产物、已持久化的 provider 状态，以及取值为 `"completed"`、`"expired"` 或 `"failed"` 的 `reason`。请基于这些值实现幂等的永久清理，而不是依赖活动句柄。eve 会重试该清理步骤，并在重试耗尽时记录失败，而不会改写会话的终态。从未打开过沙箱的会话、以及借用父级沙箱的子会话不会调用该钩子。
+
+Provider 句柄实现 `onSandboxStop()`、`onRuntimeShutdown()` 和 `onSandboxDelete()`。这些句柄级方法覆盖自编写的 stop / delete 调用、进程关停和初始化失败；`onSessionEnd()` 是唯一负责持久终态会话清理的 provider 钩子。
+
+打开选项属于 `start()`：它们既不被序列化，也不会传给 `resume()`。provider 必须把重连所需的任何不可变、由选项派生的数据放进自己的会话状态。在当前的不可变状态契约下，`resume()` 重连已有的原生状态，若状态已丢失则直接失败，而不是重新制造回调副作用。自定义 provider 可以定义仅限 start 的回调字段，但内置 provider 是在 `open()` 之后的 `defineSandbox()` 中初始化沙箱的。
+
+准备工作通过 `ctx.files` 发现编写的文件；核心对项目布局和产物存储键保持私有。把 provider SDK 的值留在 provider 内部。`environment.open()` 保留 provider 的沙箱能力类型，而异构的运行时注册表会把它擦除为 eve 的通用会话表面（surface）。
+
+## 内置 provider
+
+| Provider                                   | 适用场景                                                     |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| [Default](/docs/sandbox/default)           | 自动选择 provider，使用 eve 的标准行为。                     |
+| [Vercel](/docs/sandbox/vercel)             | 快照支撑的持久 Vercel Sandbox、域名级网络策略和 Drive 挂载。 |
+| [Docker](/docs/sandbox/docker)             | 本地容器：默认镜像、现有 OCI 镜像或 Dockerfile。             |
+| [microsandbox](/docs/sandbox/microsandbox) | 本地轻量虚拟机：来自 OCI 镜像或 Dockerfile。                 |
+| [just-bash](/docs/sandbox/just-bash)       | 纯 JavaScript shell 和虚拟文件系统，无原生进程隔离。         |
+
+## 生命周期
+
+会话持有的沙箱在其 provider 状态可用的前提下，跨轮次和跨部署持续存在。`sandbox.stop()` 停止计算但不删除持久状态；后续访问会直接恢复该状态。`sandbox.delete()` 清除 provider 状态，因此下一次 `ctx.getSandbox()` 会重跑选择器，并从当前环境启动一个全新的沙箱。当持久会话到达终态时，eve 会调用 provider 的 `onSessionEnd()` 钩子释放剩余的会话级资源。
+
+修改沙箱源码、准备代码、Dockerfile 内容、环境选项、工作区资源或技能，都会产生新的环境代。已有的持久会话保留其记录的沙箱状态；新会话使用当前代。
+
+## 延伸阅读
+
+- [子 agent](/docs/subagents) 讲解委派与沙箱归属。
+- [安全模型](/docs/concepts/security-model) 描述应用运行时与沙箱之间的信任边界。
+- [Vercel Sandbox](https://vercel.com/docs/sandbox) 文档介绍托管沙箱行为。

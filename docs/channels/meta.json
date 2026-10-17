@@ -3,6 +3,7 @@
   "defaultOpen": false,
   "pages": [
     "overview",
+    "overview.zh-CN",
     "eve",
     "mcp",
     "slack",

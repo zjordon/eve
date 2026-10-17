@@ -1,0 +1,119 @@
+---
+title: "频道概览"
+description: "用户如何触达你的 agent：频道契约、默认的 eve HTTP 频道，以及自定义频道的编写。"
+---
+
+频道（channel）把一个平台连接到你的 agent。对于会话，它负责：
+
+- 把传入的消息转换为 agent 输入。
+- 把每个平台会话映射到一个 eve 会话。
+- 决定回复如何投递、投递到哪里、是否投递。
+
+频道也可以只接收事件并转发给另一个频道，而不开启自己的会话。
+
+eve 内置一个基础 HTTP 频道和多个一等（first-class）平台频道，你也可以自行编写。在 [Integrations](/integrations) 画廊中浏览完整集合，并选择 Channels 筛选器。
+
+频道派发消息之后，无论事件来自哪里，eve 运行的都是同一个 agent 运行时。工具和指令不需要针对频道编写特殊逻辑。
+
+## 选择会话落在哪里
+
+agent 不必在事件到达的地方回复。例如，一个 webhook 可以在团队聊天中开启会话，而不向 webhook 的来源发送 agent 回复。
+
+当会话本应发生在别处时，使用[跨频道移交](./custom#cross-channel-hand-off)。目标频道接管会话、回复和后续消息。只想发一条通知而不运行 agent 时，请直接使用平台自己的 API。
+
+## 受众
+
+频道创建会话时会指定一个可观测受众（audience）：`public`、`private` 或 `unknown`。受众控制的是追踪内容的采集范围，而不是谁可以调用频道。每个频道使用它掌握的可见性信息；无法判断会话性质时，`unknown` 是安全的默认值。
+
+路由鉴权（route auth）控制访问并提供会话主体（principal）。主体类型与授权见[鉴权与路由保护](../guides/auth-and-route-protection)。默认 eve HTTP 频道的映射见[eve HTTP 频道](./eve#audience)；要为自己的频道做分类，见[自定义频道](./custom#conversation-audience)。
+
+## 消息重叠
+
+频道默认使用 `turnPolicy: "steer"`。在助手答案输出或本地工具执行开始之前，一条消息可以打断待完成的模型生成，并在同一轮次中带着修正继续。正在执行的工具会先完成并把结果 checkpoint，然后引导（steering）才到达下一次模型调用。答案输出开始后，引导会等待下一个已提交的 workflow 边界。轮次 ID 保持不变。
+
+推理和搜索进度不算作答案输出。被打断的 provider 托管搜索可能会重新运行；已完成的本地工具会被保留。
+
+当每一轮必须完成后下一条消息才能开始时，在任意内置或自定义频道上设置 `turnPolicy: "queue"`：
+
+```ts
+export default defineChannel({
+  turnPolicy: "queue",
+  routes: [
+    // ...
+  ],
+});
+```
+
+相邻的排队消息只有在完整鉴权上下文一致时才会合并为一轮——包括身份、签发者、认证器和授权属性。它们的附件和上下文保持载荷顺序。鉴权上下文不同则结束本批；eve 不会跨过中间的其他发送者重新分组消息。匿名投递始终保持独立。各轮次仍然共享会话的对话历史。
+
+`from(address).send(...)`、固定的 `Session.send(...)`、跨频道发送以及 Chat SDK 桥接发送也都接受按次覆盖的 `turnPolicy`。纯 `inputResponses` 投递会应答其等待中的请求而不产生引导。显式 `cancel()` 仍然是不带替代内容的停止操作。
+
+在 `send(...)` 之前被拒绝的事件（例如无效签名或被过滤的提及）永远不会到达活动轮次。已经发送到会话的投递，可以在频道的 `deliver` 钩子处理它之前打断待完成的生成。如果该钩子忽略了这条修正，eve 会以原来的鉴权、投递来源和频道状态恢复原始请求。
+
+每个频道都有自己的 provider 条款、数据流向、鉴权模型和用户同意预期。在通过某个频道发送非公开、敏感、受监管或生产数据之前，请确认该频道的 provider 以及你配置的作用域、签名校验、路由鉴权和投递行为适合你的使用场景。
+
+## 频道文件放在哪里
+
+频道文件位于根 agent 的 `agent/channels/` 之下，或来自挂载在那里的[扩展](../extensions)。文件主干名就是频道 id：`agent/channels/intake.ts` 的地址是 `intake`。扩展挂载会为它贡献的频道 ID 加前缀，但不会改变它们的路由路径。本地子 agent 不声明频道。
+
+```text
+agent/
+  agent.ts
+  channels/
+    eve.ts
+    slack.ts
+    intake.ts
+```
+
+用 `eve add channel/<name>` 从 registry 安装频道，例如 `eve add channel/slack` 或 `eve add channel/web`，也可以手工编写该文件。
+
+## eve HTTP 频道（默认）
+
+eve 频道是框架默认的 HTTP 会话 API，是终端 UI、[`useEveAgent`](../guides/frontend/overview) 和 `curl` 共同对话的路由集合。选定的 `channels/eve.ts` 源码把健康检查、巡检、回调、任务输入和会话协议作为一个可替换的表面统一管理。当不存在 `agent/channels/eve.ts` 文件时由 eve 提供源码；编写该文件即可替换它，最常见的目的是修改路由鉴权。路由、鉴权、替换与禁用详见 [HTTP 频道](./eve)。
+
+## 自定义频道
+
+需要自己的 HTTP 或 WebSocket 端点时，用 `eve/channels` 的 `defineChannel` 构建频道。它的路由可以在该频道上开启会话，也可以把工作移交给另一个频道。示例与编写 API 见[自定义频道](./custom)。
+
+## 与 Chat SDK 的关系
+
+eve 使用 [Chat SDK 的卡片构建组件](https://chat-sdk.dev/docs/api/cards)（Cards、Buttons、Actions 等）来组合富 Slack 消息。当你通过 [Slack 频道](./slack)构建卡片时，底层原语来自 Chat SDK，并在发送时转换为 Slack Block Kit。
+
+eve 的一等频道使用 eve 自有的运行时来处理 webhook、验签、事件解析和会话线程管理。可选的 [Chat SDK 频道](./chat-sdk)是个例外：它接受 Chat SDK 适配器，并暴露其 `Chat` 与 `Thread` 原语。eve 的一等 Slack 集成请用 `slackChannel`；eve 原生的自定义频道用 `defineChannel(...)`；只有当你有意使用 Chat SDK 适配器及其运行时的时候，才用 `chatSdkChannel`。
+
+## 选哪个频道？
+
+| 你需要…                                 | 使用                                                    |
+| --------------------------------------- | ------------------------------------------------------- |
+| Web 应用 / 浏览器聊天 UI                | eve 频道 + [`useEveAgent`](../guides/frontend/overview) |
+| 本地工具、SDK 客户端、`curl`            | [eve HTTP 频道](./eve)（默认）                          |
+| MCP 客户端委派持久化工作                | [MCP](./mcp)                                            |
+| Slack 提及、私信、按钮                  | [Slack](./slack)                                        |
+| iMessage 和 SMS                         | [Linq](./linq)                                          |
+| iMessage                                | [Photon](./photon)                                      |
+| Discord 斜杠命令、组件                  | [Discord](./discord)                                    |
+| Microsoft Teams 消息 + Adaptive Cards   | [Teams](./teams)                                        |
+| Telegram 机器人消息                     | [Telegram](./telegram)                                  |
+| SMS 或语音转写的电话                    | [Twilio](./twilio)                                      |
+| GitHub @提及、带 checkout 的 PR 审查    | [GitHub](./github)                                      |
+| Linear issue 委派与 Agent Sessions      | [Linear](./linear)                                      |
+| 其他 Chat SDK 支持的服务                | [Chat SDK 适配器](./chat-sdk)                           |
+| 其他任何场景（内部 webhook、WebSocket） | [自定义频道](./custom)（上文 `defineChannel`）          |
+
+## 免责声明
+
+作为部署者，你有责任确保你的 agent 遵守适用的法律。
+
+在 eve agent 与人交流的场景中，法律要求披露"对方正在与自动化 AI 系统交互"时，你必须完成该披露。eve 不会自动添加这一披露；请在你的指令和/或频道响应中配置。完整的部署者责任见[负责任使用](../responsible-use)。
+
+## 延伸阅读
+
+- [eve HTTP 频道](./eve)：TUI、SDK 客户端和浏览器 UI 背后的默认会话 API
+- [Slack](./slack)：最常用的平台频道，端到端讲解
+- [MCP](./mcp)：把 agent 暴露为持久化调用服务
+- [Linq](./linq)、[Photon](./photon)、[Discord](./discord)、[Teams](./teams)、[Telegram](./telegram)、[Twilio](./twilio)、[GitHub](./github)、[Linear](./linear)：其余一等平台频道
+- [Chat SDK 适配器](./chat-sdk)：触达 eve 没有一等频道支持的服务
+- [自定义频道](./custom)：用 `defineChannel` 为任何界面构建频道
+- [持久化跨频道通知](../patterns/durable-cross-channel-notifications)：不发起新的 agent 轮次，直接向其他平台发消息
+- [前端](../guides/frontend/overview)：在 eve 频道上用 `useEveAgent` 构建浏览器聊天
+- [Integrations](/integrations)：在一个画廊里用 Channels 筛选器浏览所有内置频道

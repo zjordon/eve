@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\candidate.json",
+    "sha256": "a250c80edb867078150affa5bfbf76143e639f14a37c7a456f24c81f663a7334",
+    "bytes": 9811
+  },
+  "artifact": {
+    "path": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\eve-framework.html",
+    "sha256": "74d4292e83d1083b903382cb06527af4ebcac5de66cd26451c60c075a69c98b3",
+    "bytes": 848760
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\review-2\\eve-framework.finalize.json",
+    "summaryReceipt": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\review-2\\eve-framework.finalize-summary.json",
+    "browserCheckReceipt": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\review-2\\eve-framework.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.1.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-18T01:04:10.683Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3567,
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 1,
+      "routesOverSuggestedBends": 2
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "bundle-runtime",
+            "from": "bundler",
+            "to": "runtime",
+            "label": "",
+            "collectionIndex": 7,
+            "artifactIndex": 8
+          },
+          "right": {
+            "id": "resolve-execution",
+            "from": "runtime",
+            "to": "execution",
+            "label": "ResolvedAgent",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "point": [860.5999999999999, 200],
+          "sharedNode": "runtime"
+        }
+      ],
+      "detours": [
+        {
+          "relationship": {
+            "id": "compile-agent",
+            "from": "discover",
+            "to": "compiler",
+            "label": "SourceManifest",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "bends": 3,
+          "stretch": 1.34
+        },
+        {
+          "relationship": {
+            "id": "resolve-execution",
+            "from": "runtime",
+            "to": "execution",
+            "label": "ResolvedAgent",
+            "collectionIndex": 8,
+            "artifactIndex": 9
+          },
+          "bends": 3,
+          "stretch": 1
+        }
+      ],
+      "truncated": false
+    },
+    "hints": [
+      "bundler → runtime and runtime → execution cross next to runtime: move node bundler or execution so the two reach runtime from different sides (for example one level with it, one directly above or below it).",
+      "discover → compiler needs 3 bends: move node discover or compiler so they share a row or column with matching centers, or sit diagonally with a clear corner.",
+      "runtime → execution needs 3 bends: move node runtime or execution so they share a row or column with matching centers, or sit diagonally with a clear corner."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "e9a33065-1a66-4cbf-8505-7e53fb0c6a1e",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\candidate.json",
+  "output": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\sandbox-isolation.html",
+  "specification": {
+    "sha256": "a34ff159d177210670cc73c76458e8226a9ad03001594053fc703748cc2d79f1",
+    "bytes": 7264
+  },
+  "artifact": {
+    "sha256": "aadbdde11b02421d0fb26520d87a24691c7df38fcd67179e9685ae22c78fe995",
+    "bytes": 831155
+  }
+}

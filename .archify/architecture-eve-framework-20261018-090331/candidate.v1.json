@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "eve 框架架构",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-eve-framework-20261018-090331/eve-framework.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/zjordon/eve.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "c309b7e768a8b5317baf32ae8a7ebe85667237a0"
+    },
+    "views": [
+      {
+        "id": "compile",
+        "label": "编译流水线",
+        "focus": ["agentdir", "discover", "compiler", "bundler", "artifacts", "runtime"],
+        "note": "authored 目录 → .eve/ 产物 → ResolvedAgent"
+      },
+      {
+        "id": "request-loop",
+        "label": "请求回路",
+        "focus": ["channels", "execution", "harness", "models", "sandbox"],
+        "note": "频道消息 → durable 轮次 → 模型调用与工具执行"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "author",
+      "type": "external",
+      "label": "开发者",
+      "sublabel": "编写 agent 文件",
+      "pos": [40, 170],
+      "size": [140, 56]
+    },
+    {
+      "id": "agentdir",
+      "type": "database",
+      "label": "agent/ 目录",
+      "sublabel": "instructions.md · tools · skills",
+      "pos": [40, 40],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "docs/concepts/project-structure.mdx",
+          "line": 6,
+          "end_line": 13,
+          "label": "约定布局"
+        },
+        { "path": "packages/eve/src/discover/filesystem.ts", "line": 40, "label": "槽位枚举" }
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "eve CLI",
+      "sublabel": "init · dev · build · eval",
+      "pos": [250, 170],
+      "size": [150, 56],
+      "sources": [
+        { "path": "packages/eve/src/cli/run.ts", "line": 100, "label": "createCliProgram" }
+      ]
+    },
+    {
+      "id": "discover",
+      "type": "backend",
+      "label": "discover/",
+      "sublabel": "零 import 扫描 authored 树",
+      "pos": [250, 40],
+      "size": [150, 60],
+      "sources": [
+        {
+          "path": "packages/eve/src/discover/discover-agent.ts",
+          "line": 88,
+          "label": "discoverAgent"
+        }
+      ]
+    },
+    {
+      "id": "compiler",
+      "type": "backend",
+      "label": "compiler/",
+      "sublabel": "normalize 各槽位",
+      "pos": [450, 40],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "packages/eve/src/compiler/compile-agent.ts",
+          "line": 79,
+          "label": "compileAgent"
+        }
+      ]
+    },
+    {
+      "id": "bundler",
+      "type": "backend",
+      "label": "internal/ 打包",
+      "sublabel": "nitro-rolldown",
+      "pos": [680, 40],
+      "size": [160, 60],
+      "sources": [
+        {
+          "path": "packages/eve/src/internal/authored-module-loader.ts",
+          "line": 112,
+          "label": "loadAuthoredModuleNamespace"
+        }
+      ]
+    },
+    {
+      "id": "artifacts",
+      "type": "database",
+      "label": ".eve/ 编译产物",
+      "sublabel": "manifest + module map",
+      "pos": [450, 170],
+      "size": [170, 56],
+      "sources": [
+        { "path": "packages/eve/src/compiler/compile-agent.ts", "line": 79, "label": "写入 .eve/" }
+      ]
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "runtime/",
+      "sublabel": "装配 ResolvedAgent",
+      "pos": [880, 40],
+      "size": [150, 60],
+      "sources": [
+        { "path": "packages/eve/src/runtime/resolve-agent.ts", "line": 40, "label": "resolveAgent" }
+      ]
+    },
+    {
+      "id": "webuser",
+      "type": "external",
+      "label": "用户",
+      "sublabel": "Web Chat · Slack · curl",
+      "pos": [40, 300],
+      "size": [150, 56]
+    },
+    {
+      "id": "channels",
+      "type": "backend",
+      "label": "channel/ 频道",
+      "sublabel": "路由 · 鉴权 · 派发",
+      "pos": [250, 300],
+      "size": [160, 64],
+      "sources": [
+        { "path": "packages/eve/src/channel/adapter.ts", "line": 255, "label": "ChannelAdapter" },
+        { "path": "packages/eve/src/protocol/routes.ts", "line": 5, "label": "/eve/v1 前缀" },
+        {
+          "path": "packages/eve/src/eve-channel/index.ts",
+          "line": 93,
+          "label": "默认 eve HTTP 频道"
+        }
+      ]
+    },
+    {
+      "id": "execution",
+      "type": "backend",
+      "label": "execution/",
+      "sublabel": "durable 会话轮次",
+      "pos": [500, 300],
+      "size": [160, 64],
+      "sources": [
+        {
+          "path": "packages/eve/src/execution/workflow-runtime.ts",
+          "line": 283,
+          "label": "dispatchSession"
+        },
+        {
+          "path": "packages/eve/src/execution/session/entry.ts",
+          "line": 58,
+          "label": "workflowEntry"
+        }
+      ]
+    },
+    {
+      "id": "harness",
+      "type": "backend",
+      "label": "harness/",
+      "sublabel": "模型回路 + HITL",
+      "pos": [730, 300],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "packages/eve/src/harness/model-call/call.ts",
+          "line": 393,
+          "label": "ToolLoopAgent"
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "type": "external",
+      "label": "模型 Provider",
+      "sublabel": "openai() · anthropic()",
+      "pos": [960, 300],
+      "size": [160, 56],
+      "sources": [
+        {
+          "path": "packages/eve/src/public/models/openai/index.ts",
+          "line": 50,
+          "label": "openai()"
+        },
+        {
+          "path": "packages/eve/src/public/models/anthropic/index.ts",
+          "line": 6,
+          "label": "anthropic()"
+        }
+      ]
+    },
+    {
+      "id": "clientsdk",
+      "type": "frontend",
+      "label": "client SDK",
+      "sublabel": "useEveAgent · react/vue/svelte",
+      "pos": [40, 430],
+      "size": [180, 56],
+      "sources": [
+        {
+          "path": "packages/eve/src/client/agent-session.ts",
+          "line": 14,
+          "label": "ClientAgentSession"
+        }
+      ]
+    },
+    {
+      "id": "tui",
+      "type": "frontend",
+      "label": "终端 UI（TUI）",
+      "sublabel": "eve dev 交互界面",
+      "pos": [250, 430],
+      "size": [160, 56],
+      "sources": [
+        {
+          "path": "packages/eve/src/cli/dev/tui/terminal-renderer.ts",
+          "line": 317,
+          "label": "TerminalRenderer"
+        }
+      ]
+    },
+    {
+      "id": "wfdata",
+      "type": "database",
+      "label": ".eve/.workflow-data",
+      "sublabel": "本地持久化状态",
+      "pos": [500, 430],
+      "size": [180, 56],
+      "sources": [
+        {
+          "path": "packages/eve/src/internal/workflow/local-world-data-directory.ts",
+          "line": 3,
+          "label": "本地 world 数据目录"
+        }
+      ]
+    },
+    {
+      "id": "sandbox",
+      "type": "security",
+      "label": "sandbox/",
+      "sublabel": "工具执行隔离",
+      "pos": [730, 430],
+      "size": [150, 60],
+      "sources": [
+        {
+          "path": "packages/eve/src/sandbox/providers/default.ts",
+          "line": 5,
+          "end_line": 10,
+          "label": "四个内置 provider"
+        }
+      ]
+    },
+    {
+      "id": "connections",
+      "type": "external",
+      "label": "外部服务",
+      "sublabel": "MCP · OpenAPI",
+      "pos": [960, 430],
+      "size": [150, 56],
+      "sources": [
+        {
+          "path": "packages/eve/src/public/definitions/connections/mcp.ts",
+          "line": 132,
+          "label": "defineMcpClientConnection"
+        }
+      ]
+    }
+  ],
+  "boundaries": [{ "kind": "security-group", "label": "沙箱隔离边界", "wraps": ["sandbox"] }],
+  "connections": [
+    { "id": "author-writes", "from": "author", "to": "agentdir", "label": "编写" },
+    { "id": "cli-discovers", "from": "cli", "to": "discover", "label": "dev / build 触发" },
+    { "id": "discover-compile", "from": "agentdir", "to": "discover", "label": "扫描" },
+    { "id": "compile-agent", "from": "discover", "to": "compiler", "label": "SourceManifest" },
+    { "id": "write-artifacts", "from": "compiler", "to": "artifacts", "label": "写入" },
+    { "id": "bundle-modules", "from": "compiler", "to": "bundler", "label": "模块打包" },
+    { "id": "load-runtime", "from": "artifacts", "to": "runtime", "label": "装配输入" },
+    { "id": "bundle-runtime", "from": "bundler", "to": "runtime" },
+    { "id": "resolve-execution", "from": "runtime", "to": "execution", "label": "ResolvedAgent" },
+    {
+      "id": "user-message",
+      "from": "webuser",
+      "to": "channels",
+      "label": "消息",
+      "variant": "emphasis"
+    },
+    { "id": "sdk-message", "from": "clientsdk", "to": "channels", "label": "会话 API" },
+    { "id": "tui-message", "from": "tui", "to": "channels" },
+    { "id": "dispatch-session", "from": "channels", "to": "execution", "label": "dispatchSession" },
+    { "id": "run-turn", "from": "execution", "to": "harness", "label": "轮次执行" },
+    { "id": "persist-state", "from": "execution", "to": "wfdata", "label": "原子持久化" },
+    {
+      "id": "model-call",
+      "from": "harness",
+      "to": "models",
+      "label": "流式调用",
+      "variant": "emphasis"
+    },
+    { "id": "tool-exec", "from": "harness", "to": "sandbox", "label": "工具执行" },
+    { "id": "conn-tools", "from": "harness", "to": "connections", "label": "连接工具" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "编译期",
+      "items": [
+        "discover 阶段零 import 用户代码，只读文件树",
+        "产物写入 app 根的 .eve/，运行时只消费产物",
+        "authored TS/JS 经 nitro-rolldown 打包并缓存"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "持久化执行",
+      "items": [
+        "每个会话是一个 durable workflow run（workflowEntry）",
+        "会话历史与快照随 workflow 步骤原子落盘",
+        "进程重启后经 provider resume() 恢复，不重跑选择器"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "接口层",
+      "items": [
+        "TUI、client SDK 与 curl 共用 /eve/v1 会话 API",
+        "频道一等公民：Web Chat、Slack、Discord、MCP 等",
+        "模型回路支持生成中途引导与 HITL 审批门"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "隔离与依赖",
+      "items": [
+        "工具在沙箱内执行：Vercel / Docker / microsandbox / just-bash",
+        "运行时依赖仅 nitro + undici，其余构建期 vendor",
+        "模型看不到连接的 URL 与凭据"
+      ]
+    }
+  ]
+}

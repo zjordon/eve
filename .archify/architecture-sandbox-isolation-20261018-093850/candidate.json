@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "eve 沙箱与工具执行隔离",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-sandbox-isolation-20261018-093850/sandbox-isolation.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/zjordon/eve.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "c309b7e768a8b5317baf32ae8a7ebe85667237a0"
+    },
+    "views": [
+      {
+        "id": "tool-path",
+        "label": "工具调用路径",
+        "focus": ["harness", "execTool", "session", "processes", "workspace"],
+        "note": "模型回路 → 工具执行 → 沙箱句柄 → 沙箱内进程与文件"
+      },
+      {
+        "id": "boot",
+        "label": "初始化与承载",
+        "focus": ["selector", "provider", "prepare", "netpolicy"],
+        "note": "选择器一次性 open → provider 用 prepare 产物启动实例"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "harness",
+      "type": "backend",
+      "label": "harness/ 模型回路",
+      "sublabel": "决定调用工具",
+      "pos": [40, 40],
+      "size": [130, 60],
+      "sources": [{ "path": "docs/sandbox/index.mdx", "line": 6, "label": "内置工具使用沙箱" }]
+    },
+    {
+      "id": "execTool",
+      "type": "backend",
+      "label": "工具执行",
+      "sublabel": "bash · read_file · write_file · 自编工具",
+      "pos": [250, 40],
+      "size": [160, 64],
+      "sources": [
+        { "path": "docs/sandbox/index.mdx", "line": 6, "end_line": 10, "label": "工具经句柄进沙箱" }
+      ]
+    },
+    {
+      "id": "session",
+      "type": "backend",
+      "label": "SandboxSession 句柄",
+      "sublabel": "run · spawn · writeTextFile",
+      "pos": [530, 40],
+      "size": [150, 60],
+      "sources": [
+        { "path": "docs/sandbox/index.mdx", "line": 10, "label": "ctx.getSandbox()" },
+        { "path": "docs/sandbox/index.mdx", "line": 29, "label": "run/spawn 语义" }
+      ]
+    },
+    {
+      "id": "processes",
+      "type": "backend",
+      "label": "沙箱内进程",
+      "sublabel": "bash · python · git",
+      "pos": [760, 40],
+      "size": [160, 60],
+      "sources": [
+        {
+          "path": "packages/eve/src/execution/sandbox/bash.ts",
+          "line": 26,
+          "end_line": 30,
+          "label": "bash 启动器"
+        },
+        {
+          "path": "packages/eve/src/execution/sandbox/bash.ts",
+          "line": 156,
+          "label": "sandbox.spawn"
+        }
+      ]
+    },
+    {
+      "id": "workspace",
+      "type": "database",
+      "label": "/workspace",
+      "sublabel": "可写文件系统 · 附件",
+      "pos": [1000, 40],
+      "size": [160, 60],
+      "sources": [
+        { "path": "docs/sandbox/index.mdx", "line": 6, "label": "沙箱根 /workspace" },
+        { "path": "docs/sandbox/index.mdx", "line": 127, "label": "工作区种子" },
+        { "path": "docs/sandbox/index.mdx", "line": 156, "label": "附件目录" }
+      ]
+    },
+    {
+      "id": "selector",
+      "type": "backend",
+      "label": "defineSandbox 选择器",
+      "sublabel": "open() 后 checkpoint",
+      "pos": [530, 180],
+      "size": [170, 56],
+      "sources": [
+        {
+          "path": "packages/eve/src/public/definitions/sandbox.ts",
+          "line": 29,
+          "label": "defineSandbox"
+        },
+        { "path": "docs/sandbox/index.mdx", "line": 55, "label": "checkpoint/resume" }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "database",
+      "label": "$HOME/.agents/skills",
+      "sublabel": "只读技能树",
+      "pos": [760, 180],
+      "size": [190, 56],
+      "sources": [{ "path": "docs/sandbox/index.mdx", "line": 129, "label": "技能暴露路径" }]
+    },
+    {
+      "id": "netpolicy",
+      "type": "security",
+      "label": "网络策略",
+      "sublabel": "deny-all 可选",
+      "pos": [1000, 180],
+      "size": [160, 56],
+      "sources": [{ "path": "docs/sandbox/index.mdx", "line": 39, "label": "setNetworkPolicy" }]
+    },
+    {
+      "id": "prepare",
+      "type": "database",
+      "label": "prepare 产物",
+      "sublabel": "快照 · 镜像 · VM · 模板",
+      "pos": [260, 300],
+      "size": [160, 60],
+      "sources": [{ "path": "docs/sandbox/index.mdx", "line": 94, "label": "四种捕获形式" }]
+    },
+    {
+      "id": "provider",
+      "type": "cloud",
+      "label": "沙箱 Provider",
+      "sublabel": "Vercel · Docker · microsandbox · just-bash",
+      "pos": [500, 300],
+      "size": [200, 64],
+      "sources": [
+        {
+          "path": "packages/eve/src/shared/sandbox-provider.ts",
+          "line": 204,
+          "label": "defineSandboxProvider"
+        },
+        {
+          "path": "packages/eve/src/sandbox/providers/default.ts",
+          "line": 5,
+          "end_line": 10,
+          "label": "内置 provider"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "沙箱隔离边界（与宿主机隔离）",
+      "wraps": ["processes", "workspace", "skills", "netpolicy"]
+    }
+  ],
+  "connections": [
+    { "id": "call-tool", "from": "harness", "to": "execTool", "label": "工具调用" },
+    { "id": "get-handle", "from": "execTool", "to": "session", "label": "getSandbox()" },
+    { "id": "open-session", "from": "selector", "to": "session", "label": "open()" },
+    { "id": "pick-provider", "from": "selector", "to": "provider", "label": "选择" },
+    { "id": "start-with-artifact", "from": "prepare", "to": "provider", "label": "传入产物" },
+    { "id": "host-sandbox", "from": "provider", "to": "netpolicy", "label": "承载" },
+    {
+      "id": "run-command",
+      "from": "session",
+      "to": "processes",
+      "label": "执行命令",
+      "variant": "emphasis"
+    },
+    { "id": "write-files", "from": "session", "to": "workspace", "label": "写入文件" },
+    { "id": "mount-skills", "from": "session", "to": "skills", "label": "注入技能" },
+    { "id": "read-write", "from": "processes", "to": "workspace", "label": "读写文件" },
+    { "id": "net-control", "from": "netpolicy", "to": "processes", "label": "断网管控" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "为什么隔离",
+      "items": [
+        "模型生成的命令不直接运行在宿主机进程",
+        "网络可整体关闭（setNetworkPolicy deny-all）",
+        "连接凭据留在框架侧，模型只见工具不见密钥"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "生命周期",
+      "items": [
+        "environment.open() 启动会话持有的持久沙箱",
+        "初始化成功后 checkpoint，进程重启走 resume()，不重跑选择器",
+        "stop() 停算力留状态 · delete() 清空重建 · onSessionEnd 兜底清理"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "四种承载",
+      "items": [
+        "Vercel：快照（生产路径）",
+        "Docker：本地镜像（Windows 推荐 Linux 容器）",
+        "microsandbox：轻量 VM（win32 不可用）",
+        "just-bash：纯 JS 虚拟文件系统兜底，不跑原生进程"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "资源注入",
+      "items": [
+        "agent/sandbox/workspace/ 种子复制进可写 /workspace",
+        "技能树只读暴露在 $HOME/.agents/skills",
+        "入站附件写入 /workspace/.eve/attachments/",
+        "子 Agent 可 defineParentSandbox() 共享父沙箱"
+      ]
+    }
+  ]
+}

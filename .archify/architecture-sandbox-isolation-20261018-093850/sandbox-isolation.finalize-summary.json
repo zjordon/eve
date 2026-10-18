@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\candidate.json",
+    "sha256": "a34ff159d177210670cc73c76458e8226a9ad03001594053fc703748cc2d79f1",
+    "bytes": 7264
+  },
+  "artifact": {
+    "path": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\sandbox-isolation.html",
+    "sha256": "aadbdde11b02421d0fb26520d87a24691c7df38fcd67179e9685ae22c78fe995",
+    "bytes": 831155
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\sandbox-isolation.finalize.json",
+    "summaryReceipt": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\sandbox-isolation.finalize-summary.json",
+    "browserCheckReceipt": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-sandbox-isolation-20261018-093850\\sandbox-isolation.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.1.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-18T01:04:10.683Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3235
+}

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "e3c6eeb3-1f65-4c68-b84f-363aaf4248bb",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\candidate.json",
+  "output": "D:\\dev\\git\\z_jordon\\fork\\eve\\.archify\\architecture-eve-framework-20261018-090331\\eve-framework.html",
+  "specification": {
+    "sha256": "a250c80edb867078150affa5bfbf76143e639f14a37c7a456f24c81f663a7334",
+    "bytes": 9811
+  },
+  "artifact": {
+    "sha256": "74d4292e83d1083b903382cb06527af4ebcac5de66cd26451c60c075a69c98b3",
+    "bytes": 848760
+  }
+}
